@@ -423,14 +423,14 @@ script.on_nth_tick(600, function(event)
 					local beacons = surface.find_entities_filtered { force = forceName, type = "beacon" }
 					local turrets = surface.find_entities_filtered { force = forceName, type = "ammo-turret" }
 
-					update_modules(forceName, assemblers, "machine")
-					update_modules(forceName, miners, "machine")
-					update_modules(forceName, labs, "machine")
-					update_modules(forceName, furnaces, "machine")
-					update_modules(forceName, rocketSilos, "machine")
-					update_modules(forceName, chests, "chest")
-					update_modules(forceName, logisticChests, "chest")
-					update_modules(forceName, beacons, "machine")
+					update_modules(assemblers)
+					update_modules(miners)
+					update_modules(labs)
+					update_modules(furnaces)
+					update_modules(rocketSilos)
+					update_modules(chests)
+					update_modules(logisticChests)
+					update_modules(beacons)
 
 					if settings.startup["alien-module-hyper-ammo-enabled"].value then
 						update_ammo(forceName, turrets)
@@ -442,7 +442,7 @@ script.on_nth_tick(600, function(event)
 
 					update_modules_on_surface(surface, force)
 				end
-				update_modules(force.name, force.players, "player")
+				update_modules(force.players)
 				-- play level up sound
 				for _, player in pairs(force.players) do
 					player.play_sound { path = 'alien-level-up' }
