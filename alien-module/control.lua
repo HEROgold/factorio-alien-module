@@ -41,6 +41,10 @@ function initVariables()
 	if global.killcount == nil then
 		global.killcount = {}
 	end
+    if global.modulesToUprade == nil then
+        ---@type table<LuaEntity, boolean>
+        global.modulesToUprade = {}
+    end
 end
 
 function init_gui()
@@ -109,94 +113,98 @@ function update_gui()
 end
 
 function update_modules(forceName, entities, entityType)
-	for _, entity in pairs(entities) do
-		local inventory --what type of inventory does this entity have?
+	global.modulesToUprade.insert(entities)
+	-- Add all entites to list, so we can upgrade per tick
+	-- TODO: create and store that list.
+end
 
-		if entityType == "chest" then
-			inventory = entity.get_inventory(defines.inventory.chest) --grab a chest's inventory
+function update_module(forceName, entity, entityType)
+	local inventory --what type of inventory does this entity have?
 
-			for i = 1, entity.request_slot_count do
-				local slot = entity.get_request_slot(i)
-				if slot ~= nil and slot.name == "alien-hyper-module-" .. global.currentmodulelevel[forceName] - 1 then
-					entity.set_request_slot({ name = "alien-hyper-module-" .. global.currentmodulelevel[forceName], count = slot.count }, i)
-				end
+	if entityType == "chest" then
+		inventory = entity.get_inventory(defines.inventory.chest) --grab a chest's inventory
 
-				if settings.startup["alien-module-hyper-ammo-enabled"].value and slot ~= nil and slot.name == "alien-hyper-magazine-" .. global.currentmodulelevel[forceName] - 1 then
-					entity.set_request_slot({ name = "alien-hyper-magazine-" .. global.currentmodulelevel[forceName], count = slot.count }, i)
+		for i = 1, entity.request_slot_count do
+			local slot = entity.get_request_slot(i)
+			if slot ~= nil and slot.name == "alien-hyper-module-" .. global.currentmodulelevel[forceName] - 1 then
+				entity.set_request_slot({ name = "alien-hyper-module-" .. global.currentmodulelevel[forceName], count = slot.count }, i)
+			end
+
+			if settings.startup["alien-module-hyper-ammo-enabled"].value and slot ~= nil and slot.name == "alien-hyper-magazine-" .. global.currentmodulelevel[forceName] - 1 then
+				entity.set_request_slot({ name = "alien-hyper-magazine-" .. global.currentmodulelevel[forceName], count = slot.count }, i)
+			end
+		end
+	elseif entityType == "machine" then
+		inventory = entity.get_module_inventory() --grab a machine's inventory
+	elseif entityType == "player" then
+		inventory = entity.get_main_inventory(defines.inventory.player_main) --grab a player's inventory
+
+		-- update currently held items
+		if entity.cursor_stack ~= nil and entity.cursor_stack.valid_for_read then
+			if string.find(entity.cursor_stack.name, "^alien%-hyper%-module") then
+				--if theres a module in this inventory slot
+				if tonumber(string.match(entity.cursor_stack.name, "%d+$")) < global.currentmodulelevel[forceName] then
+					--and its level is less than the "current" one
+					local stacksize = entity.cursor_stack.count --record amount
+					entity.cursor_stack.clear() --clear the slot
+					entity.cursor_stack.set_stack({ name = "alien-hyper-module-" .. math.min(global.currentmodulelevel[forceName], 100), count = stacksize }) --add the updated level modules with whatever amount we recorded
 				end
 			end
-		elseif entityType == "machine" then
-			inventory = entity.get_module_inventory() --grab a machine's inventory
-		elseif entityType == "player" then
-			inventory = entity.get_main_inventory(defines.inventory.player_main) --grab a player's inventory
 
-			-- update currently held items
-			if entity.cursor_stack ~= nil and entity.cursor_stack.valid_for_read then
-				if string.find(entity.cursor_stack.name, "^alien%-hyper%-module") then
-					--if theres a module in this inventory slot
-					if tonumber(string.match(entity.cursor_stack.name, "%d+$")) < global.currentmodulelevel[forceName] then
-						--and its level is less than the "current" one
-						local stacksize = entity.cursor_stack.count --record amount
-						entity.cursor_stack.clear() --clear the slot
-						entity.cursor_stack.set_stack({ name = "alien-hyper-module-" .. math.min(global.currentmodulelevel[forceName], 100), count = stacksize }) --add the updated level modules with whatever amount we recorded
-					end
-				end
-
-				if string.find(entity.cursor_stack.name, "^alien%-hyper%-magazine") then
-					--if theres a module in this inventory slot
-					if tonumber(string.match(entity.cursor_stack.name, "%d+$")) < global.currentmodulelevel[forceName] then
-						--and its level is less than the "current" one
-						local stacksize = entity.cursor_stack.count --record amount
-						entity.cursor_stack.clear() --clear the slot
-						entity.cursor_stack.set_stack({ name = "alien-hyper-magazine-" .. math.min(global.currentmodulelevel[forceName], 100), count = stacksize }) --add the updated level modules with whatever amount we recorded
-					end
+			if string.find(entity.cursor_stack.name, "^alien%-hyper%-magazine") then
+				--if theres a module in this inventory slot
+				if tonumber(string.match(entity.cursor_stack.name, "%d+$")) < global.currentmodulelevel[forceName] then
+					--and its level is less than the "current" one
+					local stacksize = entity.cursor_stack.count --record amount
+					entity.cursor_stack.clear() --clear the slot
+					entity.cursor_stack.set_stack({ name = "alien-hyper-magazine-" .. math.min(global.currentmodulelevel[forceName], 100), count = stacksize }) --add the updated level modules with whatever amount we recorded
 				end
 			end
-		else
-			return --error entity type not defined
 		end
+	else
+		return --error entity type not defined
+	end
 
-		if inventory == nil then
-			return
-		end
+	if inventory == nil then
+		return
+	end
 
-		for i = 1, #inventory, 1 do
-			--loop through all of the entity's inventory slots
-			local status, err = pcall(function()
-				if string.find(inventory[i].name, "^alien%-hyper%-module") then
-					--if theres a module in this inventory slot
-					if tonumber(string.match(inventory[i].name, "%d+$")) < global.currentmodulelevel[forceName] then
-						--and its level is less than the "current" one
-						local stacksize = inventory[i].count --record amount
-						inventory[i].clear() --clear the slot
+	for i = 1, #inventory, 1 do
+		--loop through all of the entity's inventory slots
+		local status, err = pcall(function()
+			if string.find(inventory[i].name, "^alien%-hyper%-module") then
+				--if theres a module in this inventory slot
+				if tonumber(string.match(inventory[i].name, "%d+$")) < global.currentmodulelevel[forceName] then
+					--and its level is less than the "current" one
+					local stacksize = inventory[i].count --record amount
+					inventory[i].clear() --clear the slot
 
-						if entityType == "player" and inventory.get_filter(i) ~= nil then
-							-- check if slot is filtered
-							inventory.set_filter(i, "alien-hyper-module-" .. math.min(global.currentmodulelevel[forceName], 100)) --update filter
-						end
-
-						inventory[i].set_stack({ name = "alien-hyper-module-" .. math.min(global.currentmodulelevel[forceName], 100), count = stacksize }) --add the updated level modules with whatever amount we recorded
+					if entityType == "player" and inventory.get_filter(i) ~= nil then
+						-- check if slot is filtered
+						inventory.set_filter(i, "alien-hyper-module-" .. math.min(global.currentmodulelevel[forceName], 100)) --update filter
 					end
+
+					inventory[i].set_stack({ name = "alien-hyper-module-" .. math.min(global.currentmodulelevel[forceName], 100), count = stacksize }) --add the updated level modules with whatever amount we recorded
 				end
+			end
 
-				if string.find(inventory[i].name, "^alien%-hyper%-magazine") then
-					--if theres a module in this inventory slot
-					if tonumber(string.match(inventory[i].name, "%d+$")) < global.currentmodulelevel[forceName] then
-						--and its level is less than the "current" one
-						local stacksize = inventory[i].count --record amount
-						inventory[i].clear() --clear the slot
+			if string.find(inventory[i].name, "^alien%-hyper%-magazine") then
+				--if theres a module in this inventory slot
+				if tonumber(string.match(inventory[i].name, "%d+$")) < global.currentmodulelevel[forceName] then
+					--and its level is less than the "current" one
+					local stacksize = inventory[i].count --record amount
+					inventory[i].clear() --clear the slot
 
-						if entityType == "player" and inventory.get_filter(i) ~= nil then
-							-- check if slot is filtered
-							inventory.set_filter(i, "alien-hyper-magazine-" .. math.min(global.currentmodulelevel[forceName], 100)) --update filter
-						end
-
-						inventory[i].set_stack({ name = "alien-hyper-magazine-" .. math.min(global.currentmodulelevel[forceName], 100), count = stacksize })
-						--add the updated level modules with whatever amount we recorded
+					if entityType == "player" and inventory.get_filter(i) ~= nil then
+						-- check if slot is filtered
+						inventory.set_filter(i, "alien-hyper-magazine-" .. math.min(global.currentmodulelevel[forceName], 100)) --update filter
 					end
+
+					inventory[i].set_stack({ name = "alien-hyper-magazine-" .. math.min(global.currentmodulelevel[forceName], 100), count = stacksize })
+					--add the updated level modules with whatever amount we recorded
 				end
-			end)
-		end
+			end
+		end)
 	end
 end
 
@@ -450,6 +458,15 @@ script.on_nth_tick(600, function(event)
 			end
 		end
 	end
+end)
+
+script.on_nth_tick(1, function(event)
+	-- forceName, entities, entityType
+	entity = global.modulesToUprade[0]
+	forceName = entity.force.name
+	entityType = entity.type
+	update_module(forceName, entity, entityType)
+	global.modulesToUprade[0] = nil
 end)
 
 -- Commands 
