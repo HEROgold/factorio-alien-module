@@ -112,14 +112,14 @@ function update_gui()
 	end
 end
 
-function update_modules(forceName, entities, entityType)
-	global.modulesToUprade.insert(entities)
-	-- Add all entites to list, so we can upgrade per tick
-	-- TODO: create and store that list.
+function update_modules(entities)
+	table.insert(global.modulesToUprade, entities)
 end
 
-function update_module(forceName, entity, entityType)
+function update_module(entity)
 	local inventory --what type of inventory does this entity have?
+	local forceName = entity.force.name
+	local entityType = entity.type
 
 	if entityType == "chest" then
 		inventory = entity.get_inventory(defines.inventory.chest) --grab a chest's inventory
@@ -412,6 +412,7 @@ script.on_nth_tick(600, function(event)
 				update_enabled_recipe(force)
 
 				for _, surface in pairs(game.surfaces) do
+					-- TODO: update all entities on all surfaces, that have module slots, or contain invenotry
 					local assemblers = surface.find_entities_filtered { force = forceName, type = "assembling-machine" }
 					local miners = surface.find_entities_filtered { force = forceName, type = "mining-drill" }
 					local labs = surface.find_entities_filtered { force = forceName, type = "lab" }
@@ -461,11 +462,8 @@ script.on_nth_tick(600, function(event)
 end)
 
 script.on_nth_tick(1, function(event)
-	-- forceName, entities, entityType
 	entity = global.modulesToUprade[0]
-	forceName = entity.force.name
-	entityType = entity.type
-	update_module(forceName, entity, entityType)
+	update_module(entity)
 	global.modulesToUprade[0] = nil
 end)
 
