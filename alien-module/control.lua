@@ -414,6 +414,7 @@ script.on_nth_tick(600, function(event)
 				for _, surface in pairs(game.surfaces) do
 					-- TODO: update all entities on all surfaces, that have module slots, or contain invenotry
 					local assemblers = surface.find_entities_filtered { force = forceName, type = "assembling-machine" }
+					local turrets = surface.find_entities_filtered { force = forceName, type = "ammo-turret" }
 					local miners = surface.find_entities_filtered { force = forceName, type = "mining-drill" }
 					local labs = surface.find_entities_filtered { force = forceName, type = "lab" }
 					local furnaces = surface.find_entities_filtered { force = forceName, type = "furnace" }
@@ -421,7 +422,6 @@ script.on_nth_tick(600, function(event)
 					local chests = surface.find_entities_filtered { force = forceName, type = "container" }
 					local logisticChests = surface.find_entities_filtered { force = forceName, type = "logistic-container" }
 					local beacons = surface.find_entities_filtered { force = forceName, type = "beacon" }
-					local turrets = surface.find_entities_filtered { force = forceName, type = "ammo-turret" }
 
 					update_modules(assemblers)
 					update_modules(miners)
@@ -462,7 +462,10 @@ script.on_nth_tick(600, function(event)
 end)
 
 script.on_nth_tick(1, function(event)
-	entity = global.modulesToUprade[0]
+    local entity, needs_upgrade = next(global.modulesToUprade)
+	if entity == nil or not needs_upgrade or not entity.valid then
+		return
+	end
 	update_module(entity)
 	global.modulesToUprade[0] = nil
 end)
